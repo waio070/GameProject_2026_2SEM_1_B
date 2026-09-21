@@ -1,21 +1,29 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+public enum PlayerState
+{
+    Normal,
+    Pickup
+}
+
 public class PlayerController : MonoBehaviour
 {
-    [SerializeField] private Animator animator;                     //애니메이터
-    [SerializeField] private Transform cameraTransform;            //캐릭터를 따라갈 카메라
+    [SerializeField] private Animator animator;                     // 애니메이터
+    [SerializeField] private Transform cameraTransform;            // 캐릭터를 따라갈 카메라
 
     [Header("이동 설정")]
-    [SerializeField] private float walkSpeed = 3f;                 //걷기 속도
-    [SerializeField] private float runSpeed = 6f;                  //뛰기 속도
-    [SerializeField] private float rotationSpeed = 10f;             //회전 속도
+    [SerializeField] private float walkSpeed = 3f;                 // 걷기 속도
+    [SerializeField] private float runSpeed = 6f;                  // 뛰기 속도
+    [SerializeField] private float rotationSpeed = 10f;             // 회전 속도
 
     [Header("바닥 설정")]
-    [SerializeField] private float gravity = -20f;                 //중력
+    [SerializeField] private float gravity = -20f;                 // 중력
 
-    private CharacterController controller;                        //유니티의 캐릭터 컨트롤러
-    private float verticalVelocity;                                 //속도 값
+    private CharacterController controller;                        // 유니티의 캐릭터 컨트롤러
+    private float verticalVelocity;                                 // 속도 값
+
+    private PlayerState currentState = PlayerState.Normal;
 
     private void Awake()
     {
@@ -32,7 +40,18 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        //1. WASD 입력
+        // 상태와 관계없이 중력은 계속 적용한다.
+        ApplyGravity();
+
+        // Normal 상태가 아니면 이동 입력을 받지 않는다.
+        if (currentState != PlayerState.Normal) return;
+
+        HandleMovement(keyboard);
+    }
+
+    private void HandleMovement(Keyboard keyboard)
+    {
+        // 1. WASD 입력
         Vector2 input = Vector2.zero;
 
         if (keyboard.aKey.isPressed)
@@ -46,36 +65,50 @@ public class PlayerController : MonoBehaviour
 
         input = Vector2.ClampMagnitude(input, 1f);
 
-        //2. 카메라의 앞쪽과 오른쪽 방향
+        // 2. 카메라의 앞쪽과 오른쪽 방향
         Vector3 cameraForward = cameraTransform.forward;
         Vector3 cameraRight = cameraTransform.right;
 
-        // 카메라의 위아래 기울기는 이동에 사용 하지 않는다.
+        // 카메라의 위아래 기울기는 이동에 사용하지 않는다.
         cameraForward.y = 0;
         cameraRight.y = 0;
 
         cameraForward.Normalize();
         cameraRight.Normalize();
 
-        //3. 카메라 기준 이동 방향
+        // 3. 카메라 기준 이동 방향
         Vector3 moveDirection = cameraForward * input.y + cameraRight * input.x;
         moveDirection = Vector3.ClampMagnitude(moveDirection, 1f);
 
-        //4. Shift 달리기
+        // 4. Shift 달리기
         bool isRunning = keyboard.leftShiftKey.isPressed;
         float currentSpeed = isRunning ? runSpeed : walkSpeed;
 
-        //5. 수평 이동
+        // 5. 수평 이동
         controller.Move(moveDirection * currentSpeed * Time.deltaTime);
 
-        //6. 이동 방향으로 회전
+        // 6. 이동 방향으로 회전
         if (moveDirection.sqrMagnitude > 0.001f)
         {
             Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
         }
 
-        //7. 기본 중력 설정
-        if(controller.isGrounded && verticalVelocity < 0f)
+        // 8. Idle, Walk, Run 애니메이션
+        float animationSpeed = 0f;
+
+        if (moveDirection.sqrMagnitude > 0.001f)
+        {
+            animationSpeed = isRunning ? 1f : 0.5f;
+        }
+
+        animator.SetFloat("speed", animationSpeed, 0.1f, Time.deltaTime);
+    }
+
+    private void ApplyGravity()
+    {
+        // 7. 기본 중력 설정
+        if (controller.isGrounded && verticalVelocity < 0f)
         {
             verticalVelocity = -2f;
         }
@@ -85,15 +118,17 @@ public class PlayerController : MonoBehaviour
         }
 
         controller.Move(Vector3.up * verticalVelocity * Time.deltaTime);
+    }
 
-        //8. Idle, Walk, Run
-        float animationSpeed = 0f;
+    public void ChangeState(PlayerState newState)
+    {
+        currentState = newState;
 
-        if (moveDirection.sqrMagnitude > 0.001f)
+        if (currentState != PlayerState.Normal)
         {
-            animationSpeed = isRunning ? 1f : 0.5f;
+            animator.SetFloat("speed", 0);
         }
 
-        animator.SetFloat("speed", animationSpeed, 0.1f, Time.deltaTime);
+        Debug.Log("현재 상태 : " + currentState);
     }
 }
