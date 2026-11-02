@@ -4,7 +4,9 @@ using UnityEngine.InputSystem;
 public enum PlayerState
 {
     Normal,
-    Pickup
+    Pickup,
+    Invntory
+
 }
 
 public class PlayerController : MonoBehaviour
@@ -130,5 +132,10 @@ public class PlayerController : MonoBehaviour
         }
 
         Debug.Log("현재 상태 : " + currentState);
+    }
+
+    public bool IsNormalState()
+    {
+        return currentState == PlayerState.Normal;
     }
 }
